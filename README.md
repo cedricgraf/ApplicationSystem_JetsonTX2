@@ -5,11 +5,11 @@ Academic Project for detection and localisation of objectes by deep learning
 ## Modèles TensorFlow / TensorRT sur Jetson
 Ce référentiel a été créé à partir du répertoire [tf_trt_models](https://github.com/NVIDIA-Jetson/tf_trt_models) de NVIDIA. Il contient des instructions pour optimiser les modèles TensorFlow avec TensorRT, ainsi que des scripts de test / démonstration. Les modèles proviennent du répertoire de modèles TensorFlow [TensorFlow models repository](https://github.com/tensorflow/models). Ce répertoire se concentre principalement sur les modèles de détection d'objets.
 
-*[Installer] (#ins)
-*[Détection d'objets] (#do)
-  *[Modèles] (#mo)
+*[Installer](#ins)
+*[Détection d'objets](#do)
+  *[Modèles](#mo)
   *[Détection d'objets en temps réel avec les modèles optimisés TensorRT](#rt)
-*Application du modèle de détecteur à main
+*[Application du modèle de détecteur à main](#main)
 
 <a name ="ins"></a>
 ### Installer
@@ -35,4 +35,104 @@ Téléchargez **[ce pip](https://nvidia.app.box.com/v/TF180-Py35-wTRT)** si vous
      $ ./install.sh
     ```
 <a name="do"></a>    
-    
+### Détection d'objets
+Veuillez vous reporter à l'original de  [NVIDIA-Jetson/tf_trt_models](https://github.com/NVIDIA-Jetson/tf_trt_models) pour des extraits de code qui montrent comment télécharger des modèles de détection d'objet non entraînés, comment créer un graphique TensorFlow et comment optimiser les modèles avec TensorRT.
+
+<a name="mo"></a>
+### Modèles
+
+Notez que les temps de référence ont été rassemblés après que le Jetson TX2 ait été placé en mode MAX-N. Pour définir TX2 en mode MAX-N, exécutez les commandes suivantes dans un terminal:
+ ``` 
+  $ sudo nvpmodel -m 0
+  $ sudo ~ / jetson_clocks.sh
+ ```
+<a name="do"></a>
+### Détection d'objets en temps réel avec les modèles optimisés TensorRT
+Le script camera_tf_trt.py prend en charge les entrées vidéo provenant de l’une des sources suivantes: (1) un fichier vidéo, par exemple, mp4, (2) un fichier image, par exemple, jpg ou png, (3) un flux RTSP provenant d’un IP CAM, (4). ) une webcam USB, (5) la caméra embarquée Jetson. Consultez le message d'aide sur la façon d'appeler le script avec une source vidéo spécifique.
+
+```
+$ python3 camera_tf_trt.py --help
+usage: camera_tf_trt.py [-h] [--file] [--image] [--filename FILENAME] [--rtsp]
+                        [--uri RTSP_URI] [--latency RTSP_LATENCY] [--usb]
+                        [--vid VIDEO_DEV] [--width IMAGE_WIDTH]
+                        [--height IMAGE_HEIGHT] [--model MODEL] [--build]
+                        [--tensorboard] [--labelmap LABELMAP_FILE]
+                        [--num-classes NUM_CLASSES] [--confidence CONF_TH]
+
+This script captures and displays live camera video, and does real-time object
+detection with TF-TRT model on Jetson TX2/TX1
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --file                use a video file as input (remember to also set
+                        --filename)
+  --image               use an image file as input (remember to also set
+                        --filename)
+  --filename FILENAME   video file name, e.g. test.mp4
+  --rtsp                use IP CAM (remember to also set --uri)
+  --uri RTSP_URI        RTSP URI, e.g. rtsp://192.168.1.64:554
+  --latency RTSP_LATENCY
+                        latency in ms for RTSP [200]
+  --usb                 use USB webcam (remember to also set --vid)
+  --vid VIDEO_DEV       device # of USB webcam (/dev/video?) [1]
+  --width IMAGE_WIDTH   image width [1280]
+  --height IMAGE_HEIGHT
+                        image height [720]
+  --model MODEL         tf-trt object detecion model [ssd_inception_v2_coco]
+  --build               re-build TRT pb file (instead of usingthe previously
+                        built version)
+  --tensorboard         write optimized graph summary to TensorBoard
+  --labelmap LABELMAP_FILE
+                        [third_party/models/research/object_detection/data/msc
+                        oco_label_map.pbtxt]
+  --num-classes NUM_CLASSES
+                        number of object classes [90]
+  --confidence CONF_TH  confidence threshold [0.3]
+```
+
+L'option `--model` peut uniquement être définie sur` ssd_inception_v2_coco` (par défaut) ou `ssd_mobilenet_v1` maintenant. Il serait probablement étendu pour prendre en charge davantage de modèles de détection d'objets à l'avenir. L'option `--build` ne doit être effectuée qu'une seule fois pour chaque modèle de détection d'objet. Le graphe optimisé TensorRT serait sauvegardé / mis en cache dans un fichier protobuf, de sorte que les appels ultérieurs du script puissent charger le graphe en cache directement sans avoir à repasser par le processus d'optimisation.
+
+
+Exemple n ° 1: Compiler le modèle 'ssd_mobilenet_v1_coco' optimisé par TensorRT et exécutez la détection d'objet en temps réel
+```
+$ python3 camera_tf_trt.py --usb --model ssd_mobilenet_v1_coco --build
+```
+Exemple n ° 2: vérifiez le modèle optimisé 'ssd_mobilenet_v1_coco' avec la photo «huskies.jpg» d'origine de NVIDIA.
+```
+$ python3 camera_tf_trt.py --image --filename examples/detection/data/huskies.jpg --model ssd_mobilenet_v1_coco
+```
+
+<p>
+<img src="data/huskies_detected.png" alt="MobileNet V1 SSD detection result on huskies.jpg" height="300px"/>
+</p>
+
+<a name="main"></a>
+### Application du modèle de détecteur à main
+* [Training a Hand Detector with TensorFlow Object Detection API](https://jkjung-avt.github.io/hand-detection-tutorial/)
+* [Deploying the Hand Detector onto Jetson TX2](https://jkjung-avt.github.io/hand-detection-on-tx2/)
+
+Une fois que vous avez formé votre propre détecteur de mains avec l’un des modèles suivants, vous pourrez l’optimiser avec TF-TRT et l’exécuter sur TX2.
+```
+ssd_mobilenet_v1_egohands
+ssd_mobilenet_v2_egohands
+ssdlite_mobilenet_v2_egohands
+ssd_inception_v2_egohands
+faster_rcnn_resnet50_egohands
+faster_rcnn_resnet101_egohands
+faster_rcnn_inception_v2_egohands
+```
+
+Veillez à copier vos fichiers de point de contrôle de modèle formés dans le dossier `data / xxx_egohands /` correspondant. Disons que vous avez fait cela pour `ssd_mobilenet_v1_egohand`. Ensuite, vous pouvez optimiser le modèle et le tester avec une image comme celle-ci:
+```shell
+$ python3 camera_tf_trt.py --image \
+                           --filename jk-son-hands.jpg \
+                           --model ssd_mobilenet_v1_egohands \
+                           --labelmap data/egohands_label_map.pbtxt \
+                           --num-classes 1 \
+                           --build
+```
+
+<p>
+<img src="https://jkjung-avt.github.io/assets/2018-09-25-hand-detection-on-tx2/son-hands-detected.png" alt="JK's son's hands" height="300px"/>
+</p>
+
