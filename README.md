@@ -5,11 +5,14 @@ Academic Project for detection and localisation of objectes by deep learning
 ## Modèles TensorFlow / TensorRT sur Jetson
 Ce référentiel a été créé à partir du répertoire [tf_trt_models](https://github.com/NVIDIA-Jetson/tf_trt_models) de NVIDIA. Il contient des instructions pour optimiser les modèles TensorFlow avec TensorRT, ainsi que des scripts de test / démonstration. Les modèles proviennent du répertoire de modèles TensorFlow [TensorFlow models repository](https://github.com/tensorflow/models). Ce répertoire se concentre principalement sur les modèles de détection d'objets.
 
-*[Installer](#ins)
-*[Détection d'objets](#do)
-  *[Modèles](#mo)
-  *[Détection d'objets en temps réel avec les modèles optimisés TensorRT](#rt)
-*[Application du modèle de détecteur à main](#main)
+* [Installer](#ins)
+* [Détection d'objets](#do)
+  * [Modèles](#mo)
+  * [Détection d'objets en temps réel avec les modèles optimisés TensorRT](#rt)
+  * [Comment ça marche](#cm)
+   * [Classification d'image](#ci)
+   * [Détection](#d)
+* [Application du modèle de détecteur à main](#main)
 
 <a name ="ins"></a>
 ### Installer
@@ -105,6 +108,119 @@ $ python3 camera_tf_trt.py --image --filename examples/detection/data/huskies.jp
 <p>
 <img src="data/huskies_detected.png" alt="MobileNet V1 SSD detection result on huskies.jpg" height="300px"/>
 </p>
+
+<a name="cm"></a>
+### Comment ça marche
+
+<a name="ci"></a>
+#### Classification d'image
+<img src="data/classification_graphic.jpg" alt="classification" height="300px"/>
+
+
+#### Modèles
+
+| Model | Input Size | TF-TRT TX2 | TF TX2 |
+|:------|:----------:|-----------:|-------:|
+| inception_v1 | 224x224 | 7.36ms | 22.9ms |
+| inception_v2 | 224x224 | 9.08ms | 31.8ms |
+| inception_v3 | 299x299 | 20.7ms | 74.3ms |
+| inception_v4 | 299x299 | 38.5ms | 129ms  |
+| mobilenet_v1_0p25_128 | 128x128 | 3.72ms | 7.99ms |
+| mobilenet_v1_0p5_160 | 160x160 | 4.47ms | 8.69ms |
+| mobilenet_v1_1p0_224 | 224x224 | 11.1ms | 17.3ms |
+
+**TF** - Original TensorFlow graph (FP32)
+
+**TF-TRT** - TensorRT optimized graph (FP16)
+
+#### Télécharger les modèles pre-entrainer
+
+Exemple modèle inception_v2 de google
+```python
+from tf_trt_models.classification import download_classification_checkpoint
+
+checkpoint_path = download_classification_checkpoint('inception_v2')
+```
+Cliquer sur ce lien pour télécharger manuellement les modèles [ici](https://github.com/tensorflow/models/tree/master/research/slim#Pretrained).
+
+
+#### Construire TensorRT
+
+```python
+from tf_trt_models.classification import build_classification_graph
+
+frozen_graph, input_names, output_names = build_classification_graph(
+    model='inception_v2',
+    checkpoint=checkpoint_path,
+    num_classes=1001
+)
+```
+
+### Optimiser avec TensorRT
+
+```python
+import tensorflow.contrib.tensorrt as trt
+
+trt_graph = trt.create_inference_graph(
+    input_graph_def=frozen_graph,
+    outputs=output_names,
+    max_batch_size=1,
+    max_workspace_size_bytes=1 << 25,
+    precision_mode='FP16',
+    minimum_segment_size=50
+)
+```
+Détection 
+----------------
+
+<img src="data/detection_graphic.jpg" alt="detection" height="300px"/>
+
+
+#### Models
+
+| Model | Input Size | TF-TRT TX2 | TF TX2 |
+|:------|:----------:|-----------:|-------:|
+| ssd_mobilenet_v1_coco | 300x300 | 50.5ms | 72.9ms |
+| ssd_inception_v2_coco | 300x300 | 54.4ms | 132ms  |
+
+**TF** - Original TensorFlow graph (FP32)
+
+**TF-TRT** - TensorRT optimized graph (FP16)
+
+#### Télécharger les modèles pre-entrainer
+
+```python
+from tf_trt_models.detection import download_detection_model
+
+config_path, checkpoint_path = download_detection_model('ssd_inception_v2_coco')
+```
+Cliquer sur ce lien pour télécharger manuellement les modèles [ici](https://github.com/tensorflow/models/blob/master/research/object_detection/g3doc/detection_model_zoo.md).
+
+#### Construire TensorRT
+
+```python
+from tf_trt_models.detection import build_detection_graph
+
+frozen_graph, input_names, output_names = build_detection_graph(
+    config=config_path,
+    checkpoint=checkpoint_path
+)
+```
+
+#### Optimiser avec TensorRT
+
+```python
+import tensorflow.contrib.tensorrt as trt
+
+trt_graph = trt.create_inference_graph(
+    input_graph_def=frozen_graph,
+    outputs=output_names,
+    max_batch_size=1,
+    max_workspace_size_bytes=1 << 25,
+    precision_mode='FP16',
+    minimum_segment_size=50
+)
+```
 
 <a name="main"></a>
 ### Application du modèle de détecteur à main
